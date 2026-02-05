@@ -1,0 +1,198 @@
+name: Auto Fix Loop
+
+# 自動修復ループ - ビルド失敗時に Claude Code が自動修復
+#
+# 動作フロー:
+# 1. build.sh / build.ps1 実行
+# 2. 失敗 → build.log に保存
+# 3. auto_fix_with_claudecode.sh 実行（修復プロンプト生成）
+# 4. guard_changes.sh でガードチェック
+# 5. （手動）Claude Code で修復
+# 6. git commit & push
+# 7. 再ビルド
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_attempts:
+        description: '最大試行回数'
+        required: false
+        default: '5'
+        type: string
+
+  # 将来的に有効化する定期実行（現在は無効）
+  # schedule:
+  #   - cron: '*/5 * * * *'  # 5分間隔
+
+jobs:
+  build-and-fix:
+    name: ビルド & 自動修復
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Python セットアップ
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 依存関係のインストール
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+
+      - name: ビルド実行
+        id: build
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          bash ci/build.sh 2>&1 | tee build.log
+
+      - name: ビルドログのアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-${{ github.run_number }}
+          path: build.log
+          retention-days: 7
+
+      - name: ガードチェック（ビルド失敗時のみ）
+        if: steps.build.outcome == 'failure'
+        run: |
+          bash ci/guard_changes.sh
+
+      - name: 修復プロンプト生成（ビルド失敗時のみ）
+        if: steps.build.outcome == 'failure'
+        run: |
+          bash ci/auto_fix_with_claudecode.sh
+
+      - name: 修復プロンプトのアップロード
+        if: steps.build.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: repair-prompt-${{ github.run_number }}
+          path: /tmp/claude_repair_prompt.txt
+          retention-days: 7
+
+      - name: ビルド成功時の処理
+        if: steps.build.outcome == 'success'
+        run: |
+          echo "✅ ビルド成功！"
+
+          # 試行回数カウンターをリセット
+          rm -f .ci_attempt_count .ci_error_hash
+
+          echo "自動修復ループを正常終了します"
+
+      - name: ビルド失敗時の通知
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "⚠️ ビルド失敗"
+          echo ""
+          echo "次のステップ:"
+          echo "  1. Artifacts から build-log と repair-prompt をダウンロード"
+          echo "  2. repair-prompt の内容を Claude Code に送信"
+          echo "  3. 修正されたコードを確認"
+          echo "  4. git add . && git commit && git push"
+          echo "  5. 自動的に再ビルドが実行されます"
+          echo ""
+
+  # ===================================================================
+  # 証跡保存ジョブ
+  # ===================================================================
+  save-artifacts:
+    name: 証跡保存
+    runs-on: ubuntu-latest
+    needs: build-and-fix
+    if: always()
+
+    steps:
+      - name: リポジトリのチェックアウト
+        uses: actions/checkout@v4
+
+      - name: CI ログディレクトリを作成
+        run: mkdir -p ci_logs
+
+      - name: ビルドログをコピー
+        if: always()
+        run: |
+          if [ -f build.log ]; then
+            cp build.log ci_logs/build_$(date +%Y%m%d_%H%M%S).log
+          fi
+
+      - name: Git diff を保存
+        if: always()
+        run: |
+          if [ -n "$(git diff)" ]; then
+            git diff > ci_logs/diff_$(date +%Y%m%d_%H%M%S).patch
+          fi
+
+      - name: 証跡のアップロード
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-logs-${{ github.run_number }}
+          path: ci_logs/
+          retention-days: 30
+
+  # ===================================================================
+  # サマリージョブ
+  # ===================================================================
+  summary:
+    name: 自動修復サマリー
+    runs-on: ubuntu-latest
+    needs: build-and-fix
+    if: always()
+
+    steps:
+      - name: サマリー生成
+        run: |
+          echo "========================================="
+          echo "自動修復ループ サマリー"
+          echo "========================================="
+          echo ""
+          echo "ビルド結果: ${{ needs.build-and-fix.result }}"
+          echo ""
+
+          if [ "${{ needs.build-and-fix.result }}" == "success" ]; then
+            echo "✅ ビルド成功"
+            echo "   自動修復ループを正常終了"
+          else
+            echo "⚠️ ビルド失敗"
+            echo "   修復プロンプトを確認してください"
+            echo "   Artifacts: repair-prompt-${{ github.run_number }}"
+          fi
+
+# ===================================================================
+# 重要な注意事項
+# ===================================================================
+#
+# 1. このワークフローは「半自動」です
+#    - ビルド失敗を検出
+#    - 修復プロンプトを生成
+#    - 人間が Claude Code で修復
+#    - コミット・プッシュで再ビルド
+#
+# 2. 完全自動化するには
+#    - Claude Code API の統合が必要
+#    - セキュリティリスクを十分に評価
+#    - 本番環境では慎重に有効化
+#
+# 3. 暴走防止機構
+#    - 最大5回の試行制限
+#    - 同一エラーの検出（SHA1ハッシュ）
+#    - 差分量制限（20行）
+#    - 対象ファイル制限（.py, .sh のみ）
+#
+# 4. 証跡保存
+#    - 全ビルドログを保存（30日間）
+#    - 全 diff を保存
+#    - ITSM 準拠の監査証跡
