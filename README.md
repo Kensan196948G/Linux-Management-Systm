@@ -1,4 +1,4 @@
-#Linux管理運用システム
+# 🖥️ Linux管理運用システム
 
 **Secure Linux Management WebUI with sudo allowlist control, audit logging, and approval workflow**
 
