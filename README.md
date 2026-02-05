@@ -130,8 +130,8 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 
 ```bash
 # リポジトリのクローン
-git clone https://github.com/Kensan196948G/Linux-Management-Systm.git
-cd Linux-Management-Systm
+git clone https://github.com/Kensan196948G/Linux-Management-System.git
+cd Linux-Management-System
 
 # バックエンド依存関係のインストール
 cd backend
@@ -231,7 +231,7 @@ Pull Request を送る前に、[CLAUDE.md](./CLAUDE.md) の開発ポリシーを
 
 ## 📞 お問い合わせ
 
-- **Issues**: [GitHub Issues](https://github.com/Kensan196948G/Linux-Management-Systm/issues)
+- **Issues**: [GitHub Issues](https://github.com/Kensan196948G/Linux-Management-System/issues)
 - **Security**: [SECURITY.md](./SECURITY.md) を参照
 
 ---
