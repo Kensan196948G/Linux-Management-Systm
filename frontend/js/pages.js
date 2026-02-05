@@ -437,22 +437,31 @@ function showBandwidthPage(container) {
 }
 
 // Hardware カテゴリ
-function showPartitionsPage(container) {
+async function showPartitionsPage(container) {
     container.innerHTML = `
         <div class="card">
-            <h3 class="card-title">Partitions - サンプルデータ</h3>
-            <table class="table">
-                <thead>
-                    <tr><th>Device</th><th>Mount</th><th>FS</th><th>Size</th><th>Used</th></tr>
-                </thead>
-                <tbody>
-                    <tr><td>/dev/sda1</td><td>/</td><td>ext4</td><td>98GB</td><td><span class="status-badge status-error">84%</span></td></tr>
-                    <tr><td>/dev/sda2</td><td>/home</td><td>ext4</td><td>200GB</td><td><span class="status-badge status-active">45%</span></td></tr>
-                </tbody>
-            </table>
-            <p class="text-secondary" style="font-size: 0.875rem;">ℹ️ サンプルデータ（v0.3実装予定）</p>
+            <h3 class="card-title">Partitions on Local Disks - ディスク使用状況</h3>
+            <button class="btn btn-primary mb-1" onclick="loadPartitionsData()">更新</button>
+            <div id="partitions-detail"></div>
         </div>
     `;
+
+    loadPartitionsData();
+}
+
+async function loadPartitionsData() {
+    const diskEl = document.getElementById('partitions-detail');
+    if (diskEl) showLoading('partitions-detail');
+
+    try {
+        const status = await api.getSystemStatus();
+        if (diskEl && status.disk) {
+            diskEl.innerHTML = createDiskUsageTable(status.disk);
+        }
+    } catch (error) {
+        console.error('Failed to load partition data:', error);
+        if (diskEl) diskEl.innerHTML = '<p class="text-secondary">データの取得に失敗しました</p>';
+    }
 }
 
 function showSystemTimePage(container) {
