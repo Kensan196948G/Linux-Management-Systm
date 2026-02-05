@@ -1,0 +1,134 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+.venv
+ENV/
+env.bak/
+venv.bak/
+
+# PyCharm
+.idea/
+
+# VSCode
+.vscode/
+
+# Vim
+*.swp
+*.swo
+*~
+
+# Pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# MyPy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Secrets (CRITICAL!)
+*.key
+*.pem
+*.crt
+*.p12
+.env
+.env.local
+.env.*.local
+secrets/
+credentials/
+auth/
+private/
+*.secret
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+
+# CI/CD artifacts
+bandit-report.json
+coverage.xml
+.coverage.*
+junit/
+test-results/
+
+# Node.js (for future frontend tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Frontend build artifacts (for future)
+frontend/dist/
+frontend/build/
+
+# sudo wrapper test outputs
+wrappers/test/*.log
+wrappers/test/*.output
+
+# Development
+.env.development
+.env.test
+TODO.md
+NOTES.md
+scratch/
+
+# ClaudeCode (but keep .claude/memory)
+.claude/cache/
+.claude/sessions/
+
+# Audit logs (keep in production, not in repo)
+audit_logs/*.json
+audit_logs/*.log
+
+# Backup files
+*.backup
+backup/
