@@ -132,6 +132,7 @@
     color: #475569;
     font-size: var(--font-size-sm);
     border-left: 3px solid transparent;
+    white-space: nowrap;
 }
 
 .submenu-item:hover {
