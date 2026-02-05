@@ -5,7 +5,8 @@
 
 class APIClient {
     constructor(baseURL) {
-        this.baseURL = baseURL || 'http://localhost:5012';
+        // 相対パスを使用（現在のホストを自動使用）
+        this.baseURL = baseURL || '';
         this.token = localStorage.getItem('access_token');
     }
 

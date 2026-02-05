@@ -87,7 +87,17 @@ class Settings(BaseSettings):
     jwt_expiration_minutes: int = 60
 
     # CORS 設定
-    cors_origins: List[str] = Field(default_factory=lambda: ["http://localhost:3000", "https://localhost:3443"])
+    cors_origins: List[str] = Field(
+        default_factory=lambda: [
+            "http://localhost:5012",
+            "https://localhost:5443",
+            "http://localhost:8000",
+            "https://localhost:8443",
+            "http://127.0.0.1:5012",
+            "http://192.168.0.185:5012",  # LAN アクセス
+            "*",  # 開発環境では全オリジンを許可
+        ]
+    )
 
     model_config = {
         "extra": "ignore",  # JSON から余分なフィールドを無視
