@@ -31,12 +31,15 @@ class SudoWrapper:
         """
         self.wrapper_dir = Path(wrapper_dir)
 
+        # テストファイルが存在するか確認
+        test_file = self.wrapper_dir / "adminui-status.sh"
+
         # 開発環境では、プロジェクトの wrappers/ を使用
-        if not self.wrapper_dir.exists():
+        if not test_file.exists():
             project_root = Path(__file__).parent.parent.parent
             self.wrapper_dir = project_root / "wrappers"
             logger.warning(
-                f"Wrapper directory not found at /usr/local/sbin, "
+                f"Wrapper scripts not found at {wrapper_dir}, "
                 f"using development directory: {self.wrapper_dir}"
             )
 
