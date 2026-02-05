@@ -95,40 +95,41 @@ ROLES = {
 # デモユーザー（開発環境のみ）
 # ===================================================================
 
-# 遅延初期化（モジュールロード時のハッシュ化を避ける）
-_DEMO_USERS_CACHE = None
-
-
-def get_demo_users():
-    """デモユーザーを取得（遅延初期化）"""
-    global _DEMO_USERS_CACHE
-
-    if _DEMO_USERS_CACHE is None:
-        _DEMO_USERS_CACHE = {
-            "viewer@example.com": User(
-                user_id="user_001",
-                username="viewer",
-                email="viewer@example.com",
-                role="Viewer",
-                hashed_password=pwd_context.hash("viewer123"),
-            ),
-            "operator@example.com": User(
-                user_id="user_002",
-                username="operator",
-                email="operator@example.com",
-                role="Operator",
-                hashed_password=pwd_context.hash("operator123"),
-            ),
-            "admin@example.com": User(
-                user_id="user_003",
-                username="admin",
-                email="admin@example.com",
-                role="Admin",
-                hashed_password=pwd_context.hash("admin123"),
-            ),
-        }
-
-    return _DEMO_USERS_CACHE
+# デモユーザー（開発環境専用）
+# 注意: 本番環境では使用しない
+# 開発環境では簡易認証（plain text 比較）を使用
+DEMO_USERS_DEV = {
+    "viewer@example.com": {
+        "user": User(
+            user_id="user_001",
+            username="viewer",
+            email="viewer@example.com",
+            role="Viewer",
+            hashed_password="",  # 開発環境では未使用
+        ),
+        "plain_password": "viewer123",
+    },
+    "operator@example.com": {
+        "user": User(
+            user_id="user_002",
+            username="operator",
+            email="operator@example.com",
+            role="Operator",
+            hashed_password="",
+        ),
+        "plain_password": "operator123",
+    },
+    "admin@example.com": {
+        "user": User(
+            user_id="user_003",
+            username="admin",
+            email="admin@example.com",
+            role="Admin",
+            hashed_password="",
+        ),
+        "plain_password": "admin123",
+    },
+}
 
 
 # ===================================================================
@@ -184,24 +185,35 @@ def authenticate_user(email: str, password: str) -> Optional[User]:
     Returns:
         認証成功時は User オブジェクト、失敗時は None
     """
-    # デモユーザーから検索（本番環境ではデータベースから取得）
-    demo_users = get_demo_users()
-    user = demo_users.get(email)
+    from .config import settings
 
-    if not user:
-        logger.warning(f"Authentication failed: user not found - {email}")
+    # 開発環境では簡易認証を使用
+    if settings.environment == "development":
+        user_data = DEMO_USERS_DEV.get(email)
+
+        if not user_data:
+            logger.warning(f"Authentication failed: user not found - {email}")
+            return None
+
+        user = user_data["user"]
+        plain_password = user_data["plain_password"]
+
+        if user.disabled:
+            logger.warning(f"Authentication failed: user disabled - {email}")
+            return None
+
+        # 開発環境: plain text 比較
+        if password != plain_password:
+            logger.warning(f"Authentication failed: invalid password - {email}")
+            return None
+
+        logger.info(f"Authentication successful (DEV mode): {email}")
+        return user
+
+    else:
+        # 本番環境: bcrypt 使用（TODO: データベースから取得）
+        logger.error("Production authentication not implemented yet")
         return None
-
-    if user.disabled:
-        logger.warning(f"Authentication failed: user disabled - {email}")
-        return None
-
-    if not verify_password(password, user.hashed_password):
-        logger.warning(f"Authentication failed: invalid password - {email}")
-        return None
-
-    logger.info(f"Authentication successful: {email}")
-    return user
 
 
 # ===================================================================
