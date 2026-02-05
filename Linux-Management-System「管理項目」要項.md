@@ -18,12 +18,12 @@ LinuxのディストリビューションはUbuntuのみを想定しています
 
 ### Linux Management Systemカテゴリ
 
-- Linux Management System Configuration
-- Linux Management System Users
-- Linux Management System Servers
-- Linux Management System Actions Log
-- Linux Management System Themes
-- Linux Management System Modules など 
+- System Configuration
+- System Users
+- System Servers
+- System Actions Log
+- System Themes
+- System Modules など 
 
 ### Systemカテゴリ
 
