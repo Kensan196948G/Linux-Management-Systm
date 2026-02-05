@@ -1,0 +1,43 @@
+{
+  "environment": "development",
+  "server": {
+    "host": "0.0.0.0",
+    "http_port": 3000,
+    "https_port": 3443,
+    "ssl_enabled": true,
+    "ssl_cert": "./certs/dev/cert.pem",
+    "ssl_key": "./certs/dev/key.pem"
+  },
+  "database": {
+    "path": "./data/dev/database.db",
+    "backup_enabled": true,
+    "backup_interval": 3600
+  },
+  "logging": {
+    "level": "DEBUG",
+    "file": "./logs/dev/app.log",
+    "max_size": "10MB",
+    "backup_count": 5
+  },
+  "security": {
+    "allowed_services": [
+      "nginx",
+      "postgresql",
+      "redis"
+    ],
+    "session_timeout": 3600,
+    "max_login_attempts": 5,
+    "require_https": false
+  },
+  "features": {
+    "demo_data_enabled": true,
+    "debug_mode": true,
+    "hot_reload": true,
+    "api_docs_enabled": true
+  },
+  "frontend": {
+    "title": "【開発】Linux Management System",
+    "show_env_badge": true,
+    "api_base_url": "http://localhost:3000/api"
+  }
+}
