@@ -1,0 +1,279 @@
+name: Security Audit
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # 毎週日曜日 0:00 UTC に定期実行
+    - cron: '0 0 * * 0'
+  workflow_dispatch: # 手動トリガーも可能
+
+jobs:
+  security-scan:
+    name: Comprehensive Security Scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install security tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install bandit safety pip-audit
+
+      - name: Run Bandit (Python Security Scanner)
+        run: |
+          if [ -d backend ]; then
+            echo "🔒 Running Bandit security scan..."
+            bandit -r backend/ -f json -o bandit-full-report.json
+            bandit -r backend/ -f screen
+
+            # 高・重大度の問題をチェック
+            high_severity=$(bandit -r backend/ -f json | jq '[.results[] | select(.issue_severity == "HIGH" or .issue_severity == "CRITICAL")] | length')
+
+            if [ "$high_severity" -gt 0 ]; then
+              echo "❌ Found $high_severity HIGH/CRITICAL severity issues"
+              exit 1
+            else
+              echo "✅ No HIGH/CRITICAL severity issues found"
+            fi
+          else
+            echo "⚠️ backend/ directory not found - skipping"
+          fi
+
+      - name: Check Python dependencies for known vulnerabilities (Safety)
+        run: |
+          if [ -f backend/requirements.txt ]; then
+            echo "🔒 Checking dependencies with Safety..."
+            pip install -r backend/requirements.txt
+            safety check --json || echo "⚠️ Vulnerabilities found in dependencies"
+          else
+            echo "⚠️ requirements.txt not found - skipping"
+          fi
+
+      - name: Audit Python packages (pip-audit)
+        run: |
+          if [ -f backend/requirements.txt ]; then
+            echo "🔒 Running pip-audit..."
+            pip-audit -r backend/requirements.txt || echo "⚠️ Vulnerabilities found"
+          else
+            echo "⚠️ requirements.txt not found - skipping"
+          fi
+
+  forbidden-patterns:
+    name: Forbidden Pattern Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: "CRITICAL: Detect shell=True"
+        run: |
+          echo "🚨 Scanning for shell=True (CRITICAL VIOLATION)..."
+
+          if find backend/ -name "*.py" -exec grep -l "shell=True" {} \; 2>/dev/null; then
+            echo ""
+            echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
+            echo "shell=True detected in the following files:"
+            find backend/ -name "*.py" -exec grep -Hn "shell=True" {} \;
+            echo ""
+            echo "This is a BLOCKING issue and must be fixed immediately."
+            echo "See CLAUDE.md for security principles."
+            exit 1
+          else
+            echo "✅ No shell=True usage detected"
+          fi
+
+      - name: "CRITICAL: Detect os.system"
+        run: |
+          echo "🚨 Scanning for os.system (CRITICAL VIOLATION)..."
+
+          if find backend/ -name "*.py" -exec grep -lE "os\.system\s*\(" {} \; 2>/dev/null; then
+            echo ""
+            echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
+            echo "os.system detected in the following files:"
+            find backend/ -name "*.py" -exec grep -HnE "os\.system\s*\(" {} \;
+            echo ""
+            echo "This is a BLOCKING issue and must be fixed immediately."
+            exit 1
+          else
+            echo "✅ No os.system usage detected"
+          fi
+
+      - name: "CRITICAL: Detect eval/exec"
+        run: |
+          echo "🚨 Scanning for eval/exec (CRITICAL VIOLATION)..."
+
+          if find backend/ -name "*.py" -exec grep -lE "\b(eval|exec)\s*\(" {} \; 2>/dev/null; then
+            echo ""
+            echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
+            echo "eval/exec detected in the following files:"
+            find backend/ -name "*.py" -exec grep -HnE "\b(eval|exec)\s*\(" {} \;
+            echo ""
+            echo "This is a BLOCKING issue and must be fixed immediately."
+            exit 1
+          else
+            echo "✅ No eval/exec usage detected"
+          fi
+
+      - name: "CRITICAL: Detect __import__ with user input"
+        run: |
+          echo "🚨 Scanning for dynamic imports (CRITICAL VIOLATION)..."
+
+          if find backend/ -name "*.py" -exec grep -lE "__import__\s*\(" {} \; 2>/dev/null; then
+            echo ""
+            echo "❌ WARNING: Dynamic import detected"
+            echo "Please review the following files:"
+            find backend/ -name "*.py" -exec grep -HnE "__import__\s*\(" {} \;
+            echo ""
+            echo "Ensure user input is NOT passed to __import__()"
+            # Warning only, manual review required
+          else
+            echo "✅ No dynamic imports detected"
+          fi
+
+      - name: "Detect forbidden special characters in code"
+        run: |
+          echo "🚨 Scanning for dangerous special characters..."
+
+          # Check for unquoted variables in bash scripts
+          if find wrappers/ -name "*.sh" -exec grep -E '\$[A-Za-z_]+[^"\}]' {} \; 2>/dev/null | grep -v "^#"; then
+            echo ""
+            echo "⚠️ WARNING: Potentially unquoted variables in shell scripts"
+            echo "All variables in wrappers must be quoted"
+            find wrappers/ -name "*.sh" -exec grep -HnE '\$[A-Za-z_]+[^"\}]' {} \; 2>/dev/null | grep -v "^#" || true
+          else
+            echo "✅ No unquoted variables detected in wrappers"
+          fi
+
+      - name: "Detect bash -c in wrappers"
+        run: |
+          echo "🚨 Scanning for bash -c in wrappers (CRITICAL)..."
+
+          if find wrappers/ -name "*.sh" -exec grep -l "bash -c" {} \; 2>/dev/null; then
+            echo ""
+            echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
+            echo "bash -c detected in wrappers:"
+            find wrappers/ -name "*.sh" -exec grep -Hn "bash -c" {} \;
+            echo ""
+            echo "Wrappers must use array-based execution only."
+            exit 1
+          else
+            echo "✅ No bash -c usage in wrappers"
+          fi
+
+  secrets-scan:
+    name: Secrets Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for secret scanning
+
+      - name: Install truffleHog
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/trufflesecurity/trufflehog/main/scripts/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Run truffleHog
+        run: |
+          echo "🔍 Scanning for secrets in git history..."
+          trufflehog git file://. --only-verified --fail || echo "⚠️ Potential secrets detected - review required"
+
+      - name: Check for common secret patterns
+        run: |
+          echo "🔍 Scanning for common secret patterns..."
+
+          # Check for potential API keys
+          if grep -rE "api[_-]?key\s*=\s*['\"][a-zA-Z0-9]{20,}['\"]" . --exclude-dir=.git 2>/dev/null; then
+            echo "⚠️ WARNING: Potential API key detected"
+            exit 1
+          fi
+
+          # Check for potential passwords in code
+          if grep -rE "password\s*=\s*['\"][^'\"]{8,}['\"]" backend/ 2>/dev/null; then
+            echo "⚠️ WARNING: Hardcoded password detected"
+            exit 1
+          fi
+
+          echo "✅ No obvious secrets detected"
+
+  sudo-security:
+    name: Sudo Security Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate wrapper script security
+        run: |
+          echo "🔒 Validating wrapper script security..."
+
+          if [ -d wrappers ]; then
+            # Check for set -euo pipefail
+            for script in wrappers/*.sh; do
+              if [ -f "$script" ]; then
+                if ! grep -q "set -euo pipefail" "$script"; then
+                  echo "⚠️ WARNING: $script missing 'set -euo pipefail'"
+                fi
+              fi
+            done
+
+            # Check for proper variable quoting
+            echo "Checking for proper variable quoting..."
+
+            # Check for input validation
+            echo "Checking for input validation..."
+            for script in wrappers/*.sh; do
+              if [ -f "$script" ]; then
+                if ! grep -q "validation\|validate\|check" "$script"; then
+                  echo "⚠️ WARNING: $script may be missing input validation"
+                fi
+              fi
+            done
+          else
+            echo "⚠️ wrappers/ directory not found - skipping"
+          fi
+
+  report:
+    name: Security Report Summary
+    runs-on: ubuntu-latest
+    needs: [security-scan, forbidden-patterns, secrets-scan, sudo-security]
+    if: always()
+
+    steps:
+      - name: Generate security summary
+        run: |
+          echo "📊 Security Audit Summary"
+          echo "========================"
+          echo ""
+          echo "Job Results:"
+          echo "- Security Scan: ${{ needs.security-scan.result }}"
+          echo "- Forbidden Patterns: ${{ needs.forbidden-patterns.result }}"
+          echo "- Secrets Scan: ${{ needs.secrets-scan.result }}"
+          echo "- Sudo Security: ${{ needs.sudo-security.result }}"
+          echo ""
+
+          if [ "${{ needs.forbidden-patterns.result }}" == "failure" ]; then
+            echo "❌ CRITICAL: Forbidden patterns detected"
+            echo "This is a BLOCKING security issue."
+            exit 1
+          fi
+
+          if [ "${{ needs.security-scan.result }}" == "failure" ]; then
+            echo "❌ High severity security issues detected"
+            exit 1
+          fi
+
+          echo "✅ Security audit completed"

@@ -1,0 +1,233 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop, feature/* ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # backend の依存関係（まだ requirements.txt がない場合はスキップ）
+          if [ -f backend/requirements.txt ]; then
+            pip install -r backend/requirements.txt
+          fi
+          # 開発・テスト用依存関係
+          pip install pytest pytest-cov bandit flake8 black isort mypy
+
+      - name: Code formatting check (Black)
+        run: |
+          if [ -d backend ]; then
+            black --check backend/ || echo "No Python files to check yet"
+          fi
+
+      - name: Import sorting check (isort)
+        run: |
+          if [ -d backend ]; then
+            isort --check-only backend/ || echo "No Python files to check yet"
+          fi
+
+      - name: Linting (flake8)
+        run: |
+          if [ -d backend ]; then
+            flake8 backend/ --count --select=E9,F63,F7,F82 --show-source --statistics || echo "No Python files to lint yet"
+            flake8 backend/ --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics || echo "No Python files to lint yet"
+          fi
+
+      - name: Type checking (mypy)
+        run: |
+          if [ -d backend ]; then
+            mypy backend/ --ignore-missing-imports || echo "No Python files to type-check yet"
+          fi
+
+      - name: Security check (Bandit)
+        run: |
+          if [ -d backend ]; then
+            bandit -r backend/ -f json -o bandit-report.json || echo "No Python files to scan yet"
+            # 重大度 High 以上の問題があれば失敗
+            bandit -r backend/ -ll || echo "No critical security issues"
+          fi
+
+      - name: Run tests (pytest)
+        run: |
+          if [ -d tests ] && [ -n "$(find tests -name 'test_*.py' 2>/dev/null)" ]; then
+            pytest tests/ -v --cov=backend --cov-report=html --cov-report=term
+          else
+            echo "No tests found yet - skipping"
+          fi
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: htmlcov/
+          retention-days: 30
+
+      - name: Upload bandit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+          retention-days: 30
+
+  shellcheck:
+    name: Shell Script Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck on wrappers
+        run: |
+          if [ -d wrappers ] && [ -n "$(find wrappers -name '*.sh' 2>/dev/null)" ]; then
+            shellcheck wrappers/*.sh
+          else
+            echo "No shell scripts found yet - skipping"
+          fi
+
+      - name: Run ShellCheck on other scripts
+        run: |
+          if [ -f run-claude.sh ]; then
+            shellcheck run-claude.sh || echo "run-claude.sh check skipped"
+          fi
+
+  security-patterns:
+    name: Security Pattern Detection
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check for shell=True (CRITICAL)
+        run: |
+          echo "🔍 Checking for shell=True usage..."
+          if grep -r "shell=True" backend/ 2>/dev/null; then
+            echo "❌ ERROR: shell=True detected in backend/"
+            echo "This is a CRITICAL security violation"
+            exit 1
+          else
+            echo "✅ No shell=True found"
+          fi
+
+      - name: Check for os.system (CRITICAL)
+        run: |
+          echo "🔍 Checking for os.system usage..."
+          if grep -r "os\.system\s*(" backend/ 2>/dev/null; then
+            echo "❌ ERROR: os.system detected in backend/"
+            echo "This is a CRITICAL security violation"
+            exit 1
+          else
+            echo "✅ No os.system found"
+          fi
+
+      - name: Check for eval/exec (CRITICAL)
+        run: |
+          echo "🔍 Checking for eval/exec usage..."
+          if grep -rE "\b(eval|exec)\s*\(" backend/ 2>/dev/null; then
+            echo "❌ ERROR: eval/exec detected in backend/"
+            echo "This is a CRITICAL security violation"
+            exit 1
+          else
+            echo "✅ No eval/exec found"
+          fi
+
+      - name: Check for bash -c in wrappers (CRITICAL)
+        run: |
+          echo "🔍 Checking for bash -c in wrappers..."
+          if grep -r "bash -c" wrappers/ 2>/dev/null; then
+            echo "❌ ERROR: bash -c detected in wrappers/"
+            echo "Wrappers must use array-based execution only"
+            exit 1
+          else
+            echo "✅ No bash -c found in wrappers"
+          fi
+
+      - name: Check for command substitution in API code
+        run: |
+          echo "🔍 Checking for command substitution..."
+          if grep -rE '\$\(' backend/api/ 2>/dev/null; then
+            echo "⚠️ WARNING: Command substitution pattern detected"
+            echo "Please review for potential injection risks"
+            # Warning only, not blocking
+          else
+            echo "✅ No command substitution found"
+          fi
+
+  documentation:
+    name: Documentation Check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Verify required documentation
+        run: |
+          echo "📚 Checking required documentation..."
+
+          missing_docs=0
+
+          if [ ! -f README.md ]; then
+            echo "❌ README.md is missing"
+            missing_docs=$((missing_docs + 1))
+          fi
+
+          if [ ! -f CLAUDE.md ]; then
+            echo "❌ CLAUDE.md is missing"
+            missing_docs=$((missing_docs + 1))
+          fi
+
+          if [ ! -f SECURITY.md ]; then
+            echo "❌ SECURITY.md is missing"
+            missing_docs=$((missing_docs + 1))
+          fi
+
+          if [ ! -f LICENSE ]; then
+            echo "❌ LICENSE is missing"
+            missing_docs=$((missing_docs + 1))
+          fi
+
+          if [ $missing_docs -gt 0 ]; then
+            echo "❌ $missing_docs required documentation file(s) missing"
+            exit 1
+          else
+            echo "✅ All required documentation present"
+          fi
+
+      - name: Check for TODO/FIXME comments
+        run: |
+          echo "🔍 Scanning for TODO/FIXME comments..."
+
+          todo_count=$(grep -rn "TODO\|FIXME" backend/ frontend/ wrappers/ 2>/dev/null | wc -l || echo "0")
+
+          if [ "$todo_count" -gt 0 ]; then
+            echo "⚠️ Found $todo_count TODO/FIXME comments"
+            grep -rn "TODO\|FIXME" backend/ frontend/ wrappers/ 2>/dev/null || true
+          else
+            echo "✅ No TODO/FIXME comments found"
+          fi

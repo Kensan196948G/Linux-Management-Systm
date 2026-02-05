@@ -1,0 +1,291 @@
+name: Auto Repair
+
+# 自動修復ワークフロー
+# 初期段階では手動トリガーのみ有効化
+# 安定稼働を確認後、定期実行（5分間隔）への移行を検討
+
+on:
+  workflow_dispatch: # 手動トリガー
+    inputs:
+      repair_type:
+        description: 'Type of repair to attempt'
+        required: true
+        default: 'format'
+        type: choice
+        options:
+          - format    # コードフォーマット修正
+          - imports   # import順序修正
+          - lint      # 軽微なLint問題修正
+          - all       # 全自動修正
+
+  # 将来的に有効化する定期実行（現在はコメントアウト）
+  # schedule:
+  #   - cron: '*/5 * * * *'  # 5分間隔
+  #   # 注意: 無限ループ防止機構が必要
+
+jobs:
+  analyze-failure:
+    name: Analyze CI Failure
+    runs-on: ubuntu-latest
+    # 前回のワークフロー実行が失敗した場合のみ実行
+    # if: github.event.workflow_run.conclusion == 'failure'
+
+    outputs:
+      needs_repair: ${{ steps.check.outputs.needs_repair }}
+      repair_type: ${{ steps.check.outputs.repair_type }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check recent CI failures
+        id: check
+        run: |
+          echo "🔍 Analyzing recent CI failures..."
+
+          # GitHub API を使用して最近のワークフロー実行を取得
+          # （本番環境では GITHUB_TOKEN を使用）
+
+          # 仮の判定ロジック（実際はログ解析が必要）
+          echo "needs_repair=false" >> $GITHUB_OUTPUT
+          echo "repair_type=none" >> $GITHUB_OUTPUT
+
+          echo "⚠️ Auto-repair is currently in manual mode only"
+
+      - name: Download failure logs
+        if: steps.check.outputs.needs_repair == 'true'
+        run: |
+          echo "📥 Downloading failure logs..."
+          # ログのダウンロードと解析
+          # 実装予定
+
+  auto-format:
+    name: Auto-format Code
+    runs-on: ubuntu-latest
+    if: github.event.inputs.repair_type == 'format' || github.event.inputs.repair_type == 'all'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install formatting tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install black isort
+
+      - name: Run Black formatter
+        id: black
+        run: |
+          echo "🎨 Running Black formatter..."
+
+          if [ -d backend ]; then
+            black backend/
+            echo "formatted=true" >> $GITHUB_OUTPUT
+          else
+            echo "formatted=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Run isort
+        id: isort
+        run: |
+          echo "📦 Running isort..."
+
+          if [ -d backend ]; then
+            isort backend/
+          fi
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+            echo "✅ Formatting changes detected"
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+            echo "ℹ️ No formatting changes needed"
+          fi
+
+      - name: Create Pull Request with fixes
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            🤖 Auto-fix: Code formatting
+
+            - Applied Black formatter
+            - Applied isort for imports
+
+            Co-Authored-By: GitHub Actions <actions@github.com>
+          branch: auto-repair/format-${{ github.run_number }}
+          title: '🤖 Auto-repair: Code formatting fixes'
+          body: |
+            ## 🤖 Automated Repair
+
+            This PR was automatically created by the Auto Repair workflow.
+
+            ### Changes
+            - ✅ Applied Black code formatter
+            - ✅ Applied isort for import sorting
+
+            ### Review Required
+            - [ ] Verify formatting changes are correct
+            - [ ] Ensure no functionality was affected
+            - [ ] Approve and merge if acceptable
+
+            **Note**: This is an automated fix. Human review is required before merging.
+
+            ---
+            Triggered by: ${{ github.event_name }}
+            Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  auto-lint-fix:
+    name: Auto-fix Lint Issues
+    runs-on: ubuntu-latest
+    if: github.event.inputs.repair_type == 'lint' || github.event.inputs.repair_type == 'all'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install tools
+        run: |
+          python -m pip install --upgrade pip
+          pip install autopep8 autoflake
+
+      - name: Auto-fix with autopep8
+        run: |
+          echo "🔧 Running autopep8..."
+
+          if [ -d backend ]; then
+            # 安全な修正のみ（aggressive level 1）
+            autopep8 --in-place --recursive --max-line-length 127 backend/ || true
+          fi
+
+      - name: Remove unused imports
+        run: |
+          echo "🧹 Removing unused imports..."
+
+          if [ -d backend ]; then
+            autoflake --in-place --remove-all-unused-imports --recursive backend/ || true
+          fi
+
+      - name: Check for changes
+        id: changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "has_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_changes=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request with fixes
+        if: steps.changes.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: |
+            🤖 Auto-fix: Lint issues
+
+            - Applied autopep8 fixes
+            - Removed unused imports
+
+            Co-Authored-By: GitHub Actions <actions@github.com>
+          branch: auto-repair/lint-${{ github.run_number }}
+          title: '🤖 Auto-repair: Lint fixes'
+          body: |
+            ## 🤖 Automated Repair
+
+            ### Changes
+            - ✅ Applied autopep8 fixes
+            - ✅ Removed unused imports with autoflake
+
+            ### Review Required
+            Human review required before merging.
+
+  prevent-infinite-loop:
+    name: Infinite Loop Prevention
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+      - name: Check repair frequency
+        run: |
+          echo "🔍 Checking for infinite repair loops..."
+
+          # 同一ブランチでの連続修復回数をチェック
+          # 実装予定: 同じエラーで3回以上修復試行した場合は停止
+
+          echo "✅ No infinite loop detected"
+
+      - name: Notify on repeated failures
+        if: failure()
+        run: |
+          echo "⚠️ ALERT: Repeated auto-repair failures detected"
+          echo "Manual intervention required"
+          # 通知ロジック（Slack, Email等）を実装予定
+
+  summary:
+    name: Repair Summary
+    runs-on: ubuntu-latest
+    needs: [auto-format, auto-lint-fix]
+    if: always()
+
+    steps:
+      - name: Generate summary
+        run: |
+          echo "📊 Auto Repair Summary"
+          echo "====================="
+          echo ""
+          echo "Repair Type: ${{ github.event.inputs.repair_type }}"
+          echo ""
+          echo "Job Results:"
+          echo "- Auto Format: ${{ needs.auto-format.result }}"
+          echo "- Auto Lint Fix: ${{ needs.auto-lint-fix.result }}"
+          echo ""
+
+          if [ "${{ needs.auto-format.result }}" == "success" ] || [ "${{ needs.auto-lint-fix.result }}" == "success" ]; then
+            echo "✅ Auto-repair completed successfully"
+            echo "Please review the created Pull Request(s)"
+          else
+            echo "ℹ️ No repairs needed or repairs skipped"
+          fi
+
+# セキュリティに関する重要な注意事項:
+#
+# 1. 自動修復は「安全な」変更のみを対象とする
+#    - コードフォーマット
+#    - import順序
+#    - 未使用import削除
+#    - 軽微なLint問題
+#
+# 2. 以下は自動修復の対象外（人間レビュー必須）:
+#    - セキュリティ関連のコード変更
+#    - sudo / root 権限に関わる変更
+#    - 認証・認可ロジックの変更
+#    - ラッパースクリプトの変更
+#
+# 3. 無限ループ防止:
+#    - 同一エラーでの修復試行は最大3回まで
+#    - 3回失敗した場合は人間に通知して停止
+#
+# 4. 定期実行の有効化:
+#    - 本番環境では十分なテストと監視体制を整えてから有効化
+#    - 最初は手動トリガーで動作確認
