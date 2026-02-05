@@ -1,7 +1,1 @@
-{
-  "statusLine": {
-    "command": "/mnt/LinuxHDD/Linux-Management-Systm/.claude/statusline.sh",
-    "padding": 0,
-    "type": "command"
-  }
-}
+{"statusLine":{"padding":0,"type":"command","command":"/mnt/LinuxHDD/Linux-Management-Systm/.claude/statusline.sh"}}
