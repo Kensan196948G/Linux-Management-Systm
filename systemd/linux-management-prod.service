@@ -1,0 +1,77 @@
+[Unit]
+Description=Linux Management System - Production Environment
+Documentation=https://github.com/Kensan196948G/Linux-Management-Systm
+After=network.target
+
+[Service]
+Type=simple
+
+# 本番環境用サービスユーザー（svc-adminui）
+# 注意: このユーザーを事前に作成する必要があります
+User=svc-adminui
+Group=svc-adminui
+WorkingDirectory=/opt/linux-management
+
+# 環境変数
+Environment="ENV=prod"
+Environment="PATH=/opt/linux-management/venv-prod/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# .env ファイルから環境変数を読み込む
+EnvironmentFile=/opt/linux-management/.env
+
+# 実行コマンド（gunicorn + uvicorn worker）
+ExecStart=/opt/linux-management/venv-prod/bin/gunicorn \
+    backend.api.main:app \
+    --bind ${PROD_IP}:${PROD_PORT} \
+    --workers 4 \
+    --worker-class uvicorn.workers.UvicornWorker \
+    --timeout 120 \
+    --keep-alive 5 \
+    --max-requests 1000 \
+    --max-requests-jitter 50 \
+    --access-logfile - \
+    --error-logfile - \
+    --log-level info
+
+# 再起動ポリシー（本番環境）
+Restart=always
+RestartSec=10s
+
+# タイムアウト
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+# プロセス制限
+LimitNOFILE=65536
+LimitNPROC=512
+
+# セキュリティ強化（本番環境）
+# プライベート /tmp を使用
+PrivateTmp=yes
+
+# 読み取り専用 /usr, /boot, /etc
+ProtectSystem=full
+
+# /home へのアクセス禁止
+ProtectHome=yes
+
+# カーネルモジュール読み込み禁止
+ProtectKernelModules=yes
+
+# カーネルログへのアクセス禁止
+ProtectKernelLogs=yes
+
+# プロセス間通信の名前空間を隔離
+PrivateIPC=yes
+
+# 新しい権限の取得を禁止
+NoNewPrivileges=yes
+
+# ログ設定
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=linux-management-prod
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,43 @@
+[Unit]
+Description=Linux Management System - Development Environment
+Documentation=https://github.com/Kensan196948G/Linux-Management-Systm
+After=network.target
+
+[Service]
+Type=simple
+User=kensan
+Group=kensan
+WorkingDirectory=/mnt/LinuxHDD/Linux-Management-Systm
+
+# 環境変数
+Environment="ENV=dev"
+Environment="PATH=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+# .env ファイルから環境変数を読み込む
+EnvironmentFile=/mnt/LinuxHDD/Linux-Management-Systm/.env
+
+# 実行コマンド
+ExecStart=/mnt/LinuxHDD/Linux-Management-Systm/venv/bin/uvicorn \
+    backend.api.main:app \
+    --host ${DEV_IP} \
+    --port ${DEV_PORT} \
+    --log-level info
+
+# 再起動ポリシー
+Restart=on-failure
+RestartSec=5s
+
+# タイムアウト
+TimeoutStartSec=30
+TimeoutStopSec=30
+
+# リソース制限（開発環境では緩め）
+LimitNOFILE=65536
+
+# ログ設定
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=linux-management-dev
+
+[Install]
+WantedBy=multi-user.target
