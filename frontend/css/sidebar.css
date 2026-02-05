@@ -132,7 +132,19 @@
     color: #475569;
     font-size: var(--font-size-sm);
     border-left: 3px solid transparent;
-    white-space: nowrap;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.submenu-item-name {
+    font-weight: 500;
+}
+
+.submenu-item-badge {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    font-weight: 400;
 }
 
 .submenu-item:hover {
@@ -158,23 +170,7 @@
     color: #94a3b8;
 }
 
-/* 実装状況バッジ */
-.status-badge-menu {
-    font-size: 0.75rem;
-    padding: 2px 6px;
-    border-radius: 3px;
-    margin-left: auto;
-}
-
-.status-implemented {
-    background-color: #10b981;
-    color: white;
-}
-
-.status-planned {
-    background-color: #64748b;
-    color: white;
-}
+/* 実装状況バッジ（廃止 - submenu-item-badge を使用） */
 
 /* メインコンテンツ */
 .main-content {
