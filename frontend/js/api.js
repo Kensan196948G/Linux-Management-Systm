@@ -40,7 +40,7 @@ class APIClient {
             if (response.status === 401) {
                 // 認証エラー: トークンをクリアしてログイン画面へ
                 this.clearToken();
-                window.location.href = '/login.html';
+                window.location.href = '/';
                 throw new Error('Unauthorized');
             }
 

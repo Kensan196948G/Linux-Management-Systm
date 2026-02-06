@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
@@ -140,17 +140,32 @@ async def health_check():
     }
 
 
-@app.get("/")
+@app.get("/", response_class=HTMLResponse)
 async def root():
     """
-    ルートエンドポイント
+    ルートエンドポイント - ログインページを表示
     """
-    return {
-        "message": "Linux Management System API",
-        "environment": settings.environment,
-        "version": "0.1.0",
-        "docs_url": "/api/docs" if settings.features.api_docs_enabled else None,
-    }
+    html_path = frontend_dir / "dev" / "index.html"
+    if not html_path.exists():
+        # HTMLが見つからない場合はAPIメタデータを返す
+        return JSONResponse({
+            "message": "Linux Management System API",
+            "environment": settings.environment,
+            "version": "0.1.0",
+            "docs_url": "/api/docs" if settings.features.api_docs_enabled else None,
+        })
+    return HTMLResponse(content=html_path.read_text(), status_code=200)
+
+
+@app.get("/dashboard", response_class=HTMLResponse)
+async def dashboard():
+    """
+    ダッシュボードページ
+    """
+    html_path = frontend_dir / "dev" / "dashboard.html"
+    if not html_path.exists():
+        raise HTTPException(status_code=404, detail="Dashboard page not found")
+    return HTMLResponse(content=html_path.read_text(), status_code=200)
 
 
 # ===================================================================
