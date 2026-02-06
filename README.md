@@ -114,7 +114,7 @@ Webminの便利さを踏襲しつつ、企業・組織での運用に必要な**
 | **Software Package Updates** | APT/パッケージ更新 | 📋 v0.3計画 |
 | **Cron Jobs** | Cron ジョブ管理 | 📋 v0.2計画 |
 | **System Logs** | ログ閲覧 | ✅ v0.1実装済み |
-| **Running Processes** | プロセス監視 | 📋 v0.2計画 |
+| **Running Processes** | プロセス監視 | ✅ v0.2実装済み |
 
 ### 🖥️ Servers カテゴリ（サービス管理）
 
@@ -226,7 +226,7 @@ uvicorn api.main:app --reload
 | **v0.2** | **System管理拡張** | 📋 計画中 | 0% |
 | | - Users and Groups 管理 | 📋 | |
 | | - Cron Jobs 管理 | 📋 | |
-| | - Running Processes 詳細 | 📋 | |
+| | - Running Processes 詳細 | ✅ | v0.2実装済み（179 test cases） |
 | | - Network Configuration | 📋 | |
 | | - SSH Server 設定 | 📋 | |
 | **v0.3** | **Servers・Security** | 📋 計画中 | 0% |

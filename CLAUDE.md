@@ -660,11 +660,11 @@ Phase 1 (v0.1) - 完了済み:
   ✅ Service Restart
   ✅ Log Viewing
 
-Phase 2 (v0.2) - 次の実装:
+Phase 2 (v0.2) - 実装中/完了:
+  ✅ Running Processes（実装済み - 179 test cases）
   🔴 Users and Groups
   🔴 Cron Jobs
   🔴 Network Configuration
-  🟡 Running Processes
 
 Phase 3 (v0.3):
   🟡 MySQL/PostgreSQL
