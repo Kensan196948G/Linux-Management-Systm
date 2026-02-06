@@ -115,19 +115,19 @@ class ProcessManager {
 
             console.log('ProcessManager: Processes loaded', response);
 
-            this.processes = response.data.processes;
+            this.processes = response.processes;
 
             // テーブル描画
             this.renderProcessTable();
 
             // 統計情報表示（将来拡張用）
-            this.renderStats(response.data);
+            this.renderStats(response);
 
             // 成功メッセージ
-            this.showStatus('success', `✅ ${response.data.returned_processes} プロセスを取得しました`);
+            this.showStatus('success', `✅ ${response.returned_processes} プロセスを取得しました`);
 
             // ページネーション情報
-            this.updatePaginationInfo(response.data.returned_processes, response.data.total_count);
+            this.updatePaginationInfo(response.returned_processes, response.total_processes);
 
         } catch (error) {
             console.error('ProcessManager: Failed to load processes', error);
@@ -435,7 +435,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // 認証チェック
     if (!api.isAuthenticated()) {
         console.warn('Not authenticated, redirecting to login');
-        window.location.href = '/login.html';
+        window.location.href = '/dev/index.html';
         return;
     }
 
