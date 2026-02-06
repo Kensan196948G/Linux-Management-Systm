@@ -80,17 +80,18 @@ jobs:
         run: |
           echo "🚨 Scanning for shell=True (CRITICAL VIOLATION)..."
 
-          if find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -l "shell=True" {} \; 2>/dev/null; then
+          # コメント行を除外して shell=True を検出
+          if find backend/ -name "*.py" ! -path "*/docs/*" -exec grep -Hn "shell=True" {} \; 2>/dev/null | grep -v '^\s*#' | grep -v '#.*shell=True'; then
             echo ""
             echo "❌❌❌ CRITICAL SECURITY VIOLATION ❌❌❌"
-            echo "shell=True detected in the following files:"
-            find backend/ -name "*.py" ! -path "*/docs/*" ! -name "*README.md" ! -name "*CLAUDE.md" -exec grep -Hn "shell=True" {} \;
+            echo "shell=True detected in executable code (not in comments):"
+            find backend/ -name "*.py" ! -path "*/docs/*" -exec grep -Hn "shell=True" {} \; 2>/dev/null | grep -v '^\s*#' | grep -v '#.*shell=True'
             echo ""
             echo "This is a BLOCKING issue and must be fixed immediately."
             echo "See CLAUDE.md for security principles."
             exit 1
           else
-            echo "✅ No shell=True usage detected"
+            echo "✅ No shell=True usage detected in executable code"
           fi
 
       - name: "CRITICAL: Detect os.system"
