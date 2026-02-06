@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse, HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..core import settings
-from .routes import auth, logs, services, system
+from .routes import auth, logs, processes, services, system
 
 # ログ設定
 logging.basicConfig(
@@ -55,6 +55,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(system.router, prefix="/api")
 app.include_router(services.router, prefix="/api")
 app.include_router(logs.router, prefix="/api")
+app.include_router(processes.router, prefix="/api")
 
 # ===================================================================
 # 静的ファイル配信

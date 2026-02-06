@@ -132,3 +132,4 @@ audit_logs/*.log
 # Backup files
 *.backup
 backup/
+worktrees/

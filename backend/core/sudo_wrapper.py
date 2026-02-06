@@ -145,6 +145,44 @@ class SudoWrapper:
         """
         return self._execute("adminui-logs.sh", [service_name, str(lines)])
 
+    def get_processes(
+        self,
+        sort_by: str = "cpu",
+        limit: int = 100,
+        filter_user: str | None = None,
+        min_cpu: float = 0.0,
+        min_mem: float = 0.0,
+    ) -> Dict[str, Any]:
+        """
+        プロセス一覧を取得
+
+        Args:
+            sort_by: ソートキー (cpu/mem/pid/time)
+            limit: 取得件数 (1-1000)
+            filter_user: ユーザー名フィルタ (allowlist検証済み)
+            min_cpu: 最小CPU使用率 (0.0-100.0)
+            min_mem: 最小メモリ使用率 (0.0-100.0)
+
+        Returns:
+            プロセス情報の辞書
+
+        Raises:
+            SudoWrapperError: 実行失敗時
+        """
+        args = [
+            f"--sort={sort_by}",
+            f"--limit={limit}",
+        ]
+
+        if filter_user:
+            args.append(f"--filter-user={filter_user}")
+        if min_cpu > 0.0:
+            args.append(f"--min-cpu={min_cpu}")
+        if min_mem > 0.0:
+            args.append(f"--min-mem={min_mem}")
+
+        return self._execute("adminui-processes.sh", args, timeout=10)
+
 
 # グローバルインスタンス
 sudo_wrapper = SudoWrapper()

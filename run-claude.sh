@@ -116,6 +116,113 @@ export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 各担当は独立した WorkTree で作業し、API仕様はリードが調整してください。」
 ```
 
+## 【ブラウザ自動化ツール使い分けガイド】
+
+このプロジェクトではブラウザ自動化に **ChromeDevTools MCP** と **Playwright MCP** の2つが利用可能です。
+以下のガイドラインに従って適切なツールを選択してください。
+
+### ChromeDevTools MCP を使用すべき場合
+
+**状況**：既存のブラウザインスタンスに接続してデバッグ・検証を行う場合
+
+**特徴**：
+- Windows側で起動済みのEdge/Chromeブラウザに接続（SSHポートフォワーディング経由）
+- リアルタイムのDevTools Protocolアクセス
+- 既存のユーザーセッション・Cookie・ログイン状態を利用可能
+- 手動操作との併用が容易（開発者が手動で操作したブラウザをそのままデバッグ）
+
+**適用例**：
+- ログイン済みのWebアプリをデバッグ（セッション情報を再現する必要がない）
+- ブラウザコンソールのエラーログをリアルタイム監視
+- ネットワークトラフィック（XHR/Fetch）の詳細解析
+- DOM要素の動的変更を追跡・検証
+- パフォーマンス計測（Navigation Timing、Resource Timing等）
+- 手動操作とスクリプト操作を交互に実行する検証作業
+
+**接続確認方法**：
+\`\`\`bash
+# 環境変数 MCP_CHROME_DEBUG_PORT（または CLAUDE_CHROME_DEBUG_PORT）が設定されていることを確認
+echo \$MCP_CHROME_DEBUG_PORT
+
+# DevTools接続テスト
+curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/version | jq '.'
+
+# 利用可能なタブ一覧
+curl -s http://127.0.0.1:\${MCP_CHROME_DEBUG_PORT}/json/list | jq '.'
+\`\`\`
+
+**利用可能なMCPツール**：
+- \`mcp__chrome-devtools__navigate_page\`: ページ遷移
+- \`mcp__chrome-devtools__click\`: 要素クリック
+- \`mcp__chrome-devtools__fill\`: フォーム入力
+- \`mcp__chrome-devtools__evaluate_script\`: JavaScriptコード実行
+- \`mcp__chrome-devtools__take_screenshot\`: スクリーンショット取得
+- \`mcp__chrome-devtools__get_console_message\`: コンソールログ取得
+- \`mcp__chrome-devtools__list_network_requests\`: ネットワークリクエスト一覧
+- （その他、\`mcp__chrome-devtools__*\` で利用可能なツールを検索）
+
+### Playwright MCP を使用すべき場合
+
+**状況**：自動テスト・スクレイピング・クリーンな環境での検証を行う場合
+
+**特徴**：
+- ヘッドレスブラウザを新規起動（Linux側で完結、Xサーバ不要）
+- 完全に独立した環境（クリーンなプロファイル、Cookie無し）
+- クロスブラウザ対応（Chromium/Firefox/WebKit）
+- 自動待機・リトライ・タイムアウト処理が組み込み済み
+- マルチタブ・マルチコンテキスト対応
+
+**適用例**：
+- E2Eテストの自動実行（CI/CDパイプライン組み込み）
+- スクレイピング・データ収集（ログイン不要の公開ページ）
+- 複数ブラウザでの互換性テスト
+- 並列実行が必要な大規模テスト
+- ログイン認証を含む自動テストフロー（認証情報をコードで管理）
+
+**接続確認方法**：
+\`\`\`bash
+# Playwrightインストール確認（通常はMCPサーバーが自動管理）
+# 特別な環境変数設定は不要（MCPサーバーが自動起動）
+\`\`\`
+
+**利用可能なMCPツール**：
+- \`mcp__plugin_playwright_playwright__browser_navigate\`: ページ遷移
+- \`mcp__plugin_playwright_playwright__browser_click\`: 要素クリック
+- \`mcp__plugin_playwright_playwright__browser_fill_form\`: フォーム入力
+- \`mcp__plugin_playwright_playwright__browser_run_code\`: JavaScriptコード実行
+- \`mcp__plugin_playwright_playwright__browser_take_screenshot\`: スクリーンショット取得
+- \`mcp__plugin_playwright_playwright__browser_console_messages\`: コンソールログ取得
+- \`mcp__plugin_playwright_playwright__browser_network_requests\`: ネットワークリクエスト一覧
+- （その他、\`mcp__plugin_playwright_playwright__*\` で利用可能なツールを検索）
+
+### 使い分けの判断フロー
+
+\`\`\`
+既存ブラウザの状態（ログイン・Cookie等）を利用したい？
+├─ YES → ChromeDevTools MCP
+│         （Windows側ブラウザに接続、環境変数 MCP_CHROME_DEBUG_PORT 使用）
+│
+└─ NO  → 以下をさらに判断
+          │
+          ├─ 自動テスト・CI/CD統合？ → Playwright MCP
+          ├─ スクレイピング？ → Playwright MCP
+          ├─ クロスブラウザ検証？ → Playwright MCP
+          └─ 手動操作との併用が必要？ → ChromeDevTools MCP
+\`\`\`
+
+### 注意事項
+
+1. **Xサーバ不要**：LinuxホストにXサーバがインストールされていなくても、両ツールともヘッドレスモードで動作します
+2. **ポート範囲**：ChromeDevTools MCPは9222～9229の範囲で動作（config.jsonで設定）
+3. **並行利用**：両ツールは同時に使用可能（異なるユースケースで併用可）
+4. **ツール検索**：利用可能なツールを確認するには \`ToolSearch\` を使用してキーワード検索（例：\`ToolSearch "chrome-devtools screenshot"\`）
+
+### 推奨ワークフロー
+
+1. **開発・デバッグフェーズ**：ChromeDevTools MCPで手動操作と併用しながら検証
+2. **テスト自動化フェーズ**：Playwrightで自動テストスクリプト作成
+3. **CI/CD統合フェーズ**：PlaywrightテストをGitHub Actionsに組み込み
+
 ## 【Git / GitHub 操作ポリシー】
 
 ### ローカルで行ってよい自動操作
@@ -177,9 +284,62 @@ export MCP_CHROME_DEBUG_PORT=${PORT}
 # Agent Teams オーケストレーション有効化
 export CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1
 
-# 確認ログ（接続可視化）
-echo "MCP_CHROME_DEBUG_PORT=${MCP_CHROME_DEBUG_PORT}"
-curl -s http://127.0.0.1:${MCP_CHROME_DEBUG_PORT}/json/version || true
+# DevTools詳細接続テスト関数
+test_devtools_connection() {
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🔍 DevTools 詳細接続テスト"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+
+    # 1. バージョン情報
+    echo "📋 1. バージョン情報:"
+    if command -v jq &> /dev/null; then
+        curl -s http://127.0.0.1:${PORT}/json/version | jq '.' || echo "❌ バージョン取得失敗"
+    else
+        curl -s http://127.0.0.1:${PORT}/json/version || echo "❌ バージョン取得失敗"
+    fi
+    echo ""
+
+    # 2. タブ数確認
+    echo "📋 2. 開いているタブ数:"
+    if command -v jq &> /dev/null; then
+        TAB_COUNT=$(curl -s http://127.0.0.1:${PORT}/json/list | jq 'length')
+        echo "   タブ数: ${TAB_COUNT}"
+    else
+        echo "   (jqがインストールされていないため詳細表示不可)"
+        curl -s http://127.0.0.1:${PORT}/json/list | head -n 3
+    fi
+    echo ""
+
+    # 3. WebSocketエンドポイント確認
+    echo "📋 3. WebSocket接続エンドポイント:"
+    if command -v jq &> /dev/null; then
+        WS_URL=$(curl -s http://127.0.0.1:${PORT}/json/list | jq -r '.[0].webSocketDebuggerUrl // "N/A"')
+        echo "   ${WS_URL}"
+    else
+        echo "   (jqがインストールされていないため表示不可)"
+    fi
+    echo ""
+
+    # 4. Protocol version確認
+    echo "📋 4. DevTools Protocol Version:"
+    if command -v jq &> /dev/null; then
+        PROTO_VER=$(curl -s http://127.0.0.1:${PORT}/json/version | jq -r '."Protocol-Version" // "N/A"')
+        echo "   ${PROTO_VER}"
+    else
+        echo "   (jqがインストールされていないため表示不可)"
+    fi
+    echo ""
+
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "✅ DevTools接続テスト完了"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+}
+
+# 詳細テスト実行
+test_devtools_connection
 
 echo ""
 echo "🚀 Claude 起動 (port=${PORT})"

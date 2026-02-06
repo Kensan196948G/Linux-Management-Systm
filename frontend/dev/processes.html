@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Running Processes - Linux Management System</title>
+    <link rel="stylesheet" href="../css/style.css">
+    <link rel="stylesheet" href="../css/sidebar.css">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* プロセステーブル専用スタイル */
+        #processTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+
+        #processTable th {
+            background-color: #2c3e50;
+            color: white;
+            padding: 12px 8px;
+            text-align: left;
+            font-weight: bold;
+            border-bottom: 2px solid #34495e;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        #processTable td {
+            padding: 8px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        #processTable tr:hover {
+            background-color: #f8f9fa;
+            cursor: pointer;
+        }
+
+        /* 高CPU使用率のハイライト */
+        #processTable tr.high-cpu {
+            background-color: #fff3cd;
+        }
+
+        #processTable tr.high-memory {
+            background-color: #ffe4e6;
+        }
+
+        /* CPU/MEM カラム */
+        .cpu-usage, .mem-usage {
+            font-weight: bold;
+            text-align: right;
+        }
+
+        .cpu-low { color: #10b981; }
+        .cpu-medium { color: #f59e0b; }
+        .cpu-high { color: #ef4444; }
+
+        /* コマンド列 */
+        #processTable td.command {
+            max-width: 350px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            color: #555;
+        }
+
+        /* プロセス状態バッジ */
+        .state-badge {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: bold;
+        }
+
+        .state-R { background-color: #10b981; color: white; }
+        .state-S { background-color: #64748b; color: white; }
+        .state-D { background-color: #f59e0b; color: white; }
+        .state-Z { background-color: #ef4444; color: white; }
+        .state-T { background-color: #8b5cf6; color: white; }
+
+        /* フィルタコントロール */
+        .controls {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #555;
+            margin-bottom: 2px;
+        }
+
+        .control-group select,
+        .control-group input {
+            padding: 6px 10px;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        /* ボタン */
+        #refreshBtn, #autoRefreshBtn {
+            padding: 8px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        #refreshBtn:hover, #autoRefreshBtn:hover {
+            background-color: #0056b3;
+        }
+
+        #autoRefreshBtn.active {
+            background-color: #28a745;
+        }
+
+        /* ステータス表示 */
+        .status {
+            margin-top: 10px;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.info {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        /* Loading / No data */
+        .loading, .no-data {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            padding: 20px;
+        }
+
+        /* テーブルコンテナ */
+        .table-container {
+            max-height: 600px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 5px;
+        }
+
+        /* ページネーション */
+        .pagination-info {
+            margin-top: 15px;
+            text-align: center;
+            color: #6c757d;
+            font-size: 14px;
+        }
+
+        /* 統計情報カード */
+        .stats-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stats-card h5 {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+        }
+
+        .stat-item {
+            background-color: rgba(255, 255, 255, 0.2);
+            padding: 10px;
+            border-radius: 5px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-layout">
+        <!-- 左側サイドバー -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h1 class="sidebar-title">🖥️ Linux管理運用</h1>
+                <p class="sidebar-subtitle">
+                    <span class="env-badge dev">【開発】</span>
+                </p>
+            </div>
+
+            <nav class="sidebar-menu">
+                <div class="menu-item" onclick="location.href='dashboard.html'">
+                    <span class="menu-item-icon">📊</span>
+                    <span>ダッシュボード</span>
+                </div>
+
+                <div class="menu-item" onclick="location.href='services.html'">
+                    <span class="menu-item-icon">⚙️</span>
+                    <span>サービス管理</span>
+                </div>
+
+                <div class="menu-item active">
+                    <span class="menu-item-icon">⚡</span>
+                    <span>Running Processes</span>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <p>ユーザー: <strong id="sidebar-username">-</strong></p>
+                <p>ロール: <span id="sidebar-role">-</span></p>
+                <button class="btn btn-danger" onclick="logout()" style="width: 100%; margin-top: var(--spacing-sm); font-size: var(--font-size-sm);">ログアウト</button>
+            </div>
+        </aside>
+
+        <!-- メインコンテンツ -->
+        <main class="main-content">
+            <div class="main-header">
+                <h2 id="page-title">⚡ Running Processes</h2>
+            </div>
+
+            <div class="main-body" id="main-body">
+                <!-- 統計情報カード -->
+                <div class="stats-card" id="statsCard" style="display: none;">
+                    <h5>📊 プロセス統計</h5>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">総プロセス数</div>
+                            <div class="stat-value" id="stat-total">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">実行中 (R)</div>
+                            <div class="stat-value" id="stat-running">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">スリープ中 (S)</div>
+                            <div class="stat-value" id="stat-sleeping">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">総CPU使用率</div>
+                            <div class="stat-value" id="stat-cpu">-</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">総メモリ使用率</div>
+                            <div class="stat-value" id="stat-memory">-</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- フィルタコントロール -->
+                <div class="controls">
+                    <div class="control-group">
+                        <label for="sortBy">Sort By</label>
+                        <select id="sortBy">
+                            <option value="cpu">CPU Usage</option>
+                            <option value="memory">Memory Usage</option>
+                            <option value="pid">PID</option>
+                            <option value="name">Name</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group">
+                        <label for="filterUser">User</label>
+                        <input type="text" id="filterUser" placeholder="All users" pattern="^[a-zA-Z0-9_-]*$">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="minCpu">Min CPU (%)</label>
+                        <input type="number" id="minCpu" min="0" max="100" step="0.1" value="0" style="width: 100px;">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="minMem">Min Memory (%)</label>
+                        <input type="number" id="minMem" min="0" max="100" step="0.1" value="0" style="width: 100px;">
+                    </div>
+
+                    <div class="control-group">
+                        <label for="limitCount">Limit</label>
+                        <select id="limitCount">
+                            <option value="50">50</option>
+                            <option value="100" selected>100</option>
+                            <option value="200">200</option>
+                            <option value="500">500</option>
+                        </select>
+                    </div>
+
+                    <div class="control-group" style="margin-left: auto;">
+                        <label>&nbsp;</label>
+                        <div style="display: flex; gap: 10px;">
+                            <button id="refreshBtn" title="Refresh now">🔄 Refresh</button>
+                            <button id="autoRefreshBtn" title="Toggle auto-refresh (5s interval)">⏱️ Auto-Refresh: OFF</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ステータス表示 -->
+                <div id="statusDisplay"></div>
+
+                <!-- プロセステーブル -->
+                <div class="table-container">
+                    <table id="processTable" class="table table-sm table-hover">
+                        <thead>
+                            <tr>
+                                <th>PID</th>
+                                <th>Name</th>
+                                <th>User</th>
+                                <th>CPU %</th>
+                                <th>Memory %</th>
+                                <th>RSS (MB)</th>
+                                <th>State</th>
+                                <th>Started</th>
+                                <th>Time</th>
+                                <th>Command</th>
+                            </tr>
+                        </thead>
+                        <tbody id="processTableBody">
+                            <tr>
+                                <td colspan="10" class="loading">Loading processes...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- ページネーション情報 -->
+                <div class="pagination-info" id="paginationInfo">
+                    表示: 0 / 0 プロセス
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- プロセス詳細モーダル -->
+    <div class="modal fade" id="processDetailModal" tabindex="-1" aria-labelledby="processDetailModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="processDetailModalLabel">プロセス詳細</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="processDetailBody">
+                    <p class="loading">Loading details...</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/processes.js"></script>
+    <script>
+        // 初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            // ProcessManager の初期化は processes.js で実行される
+            console.log('Processes page loaded');
+        });
+
+        // ログアウト関数
+        function logout() {
+            localStorage.removeItem('authToken');
+            window.location.href = '/login.html';
+        }
+    </script>
+</body>
+</html>
