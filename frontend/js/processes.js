@@ -190,10 +190,10 @@ class ProcessManager {
             // Memory %
             const memCell = document.createElement('td');
             memCell.className = 'mem-usage';
-            memCell.textContent = proc.memory_percent.toFixed(1);
-            if (proc.memory_percent < 10) {
+            memCell.textContent = proc.mem_percent.toFixed(1);
+            if (proc.mem_percent < 10) {
                 memCell.classList.add('cpu-low');
-            } else if (proc.memory_percent < 50) {
+            } else if (proc.mem_percent < 50) {
                 memCell.classList.add('cpu-medium');
             } else {
                 memCell.classList.add('cpu-high');
